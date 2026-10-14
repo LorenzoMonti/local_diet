@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Piano con Claude{% endblock %}
+
+{% block appbar %}
+<a href="/piano" class="iconbtn" aria-label="Indietro">{{ icon('back', 20) }}</a>
+<div class="grow"><h1>Piano con Claude</h1><span class="sub">Esporta, chiedi a Claude, reimporta</span></div>
+{% endblock %}
+
+{% block content %}
+<div class="steps-list card flush">
+  <div class="list">
+    <div><span class="step-n">1</span><span class="grow small">Copia il testo qui sotto e incollalo in una chat con Claude (o un altro assistente)</span></div>
+    <div><span class="step-n">2</span><span class="grow small">Discuti il piano quanto vuoi: alla fine Claude risponde con un blocco JSON</span></div>
+    <div><span class="step-n">3</span><span class="grow small">Copia la risposta e incollala in <a href="#importa">Importa</a>: piano e spesa si aggiornano</span></div>
+  </div>
+</div>
+
+<div class="section-title">1 · Esporta</div>
+<details class="card" {{ 'open' if not has_plan }}>
+  <summary class="row between" style="cursor:pointer;list-style:none">
+    <strong class="row">{{ icon('sliders', 18) }} Opzioni</strong><span class="muted">{{ icon('chevron', 18) }}</span>
+  </summary>
+  <form method="get" action="/piano/scambia" style="margin-top:.9rem">
+    <fieldset>
+      <legend>Punto di partenza</legend>
+      <div class="checkpills">
+        <label class="radio-pill"><input type="radio" name="base" value="1" {{ 'checked' if base and has_plan }} {{ 'disabled' if not has_plan }}><span>Migliora il piano attuale</span></label>
+        <label class="radio-pill"><input type="radio" name="base" value="0" {{ 'checked' if not base or not has_plan }}><span>Piano nuovo</span></label>
+      </div>
+    </fieldset>
+    <label class="field"><span>Settimana dal</span><input type="date" name="week_start" value="{{ week_start }}"></label>
+    <fieldset>
+      <legend>Pasti</legend>
+      <div class="checkpills">
+        {% for m in meals %}<label><input type="checkbox" name="meals" value="{{ m }}" {{ 'checked' if m in sel_meals }}><span>{{ m }}</span></label>{% endfor %}
+      </div>
+    </fieldset>
+    <label class="field"><span>Richieste per questa settimana</span><textarea name="req" rows="2">{{ req }}</textarea></label>
+    <fieldset>
+      <legend>Privacy</legend>
+      <div class="checkpills">
+        <label><input type="checkbox" name="anon" value="1" {{ 'checked' if anon }}><span>Nomi come «Persona A/B»</span></label>
+        <label><input type="checkbox" name="labs" value="1" {{ 'checked' if labs }}><span>Includi valori degli esami</span></label>
+      </div>
+      <p class="muted xs" style="margin:.4rem .2rem 0">Degli esami vengono esportati solo i valori estratti, mai il testo del referto.
+        All'import i nomi vengono ripristinati.</p>
+    </fieldset>
+    <input type="hidden" name="opt" value="1">
+    <button class="block soft">{{ icon('refresh', 18) }} Aggiorna testo</button>
+  </form>
+</details>
+
+<div class="card">
+  <textarea id="prompt" rows="8" class="mono" readonly>{{ prompt }}</textarea>
+  <div class="row wrap" style="margin-top:.7rem">
+    <button type="button" class="grow" onclick="sharePrompt()">{{ icon('copy', 18) }} Copia / condividi</button>
+    <button type="button" class="soft" onclick="downloadPrompt()" aria-label="Scarica file">{{ icon('download', 18) }}</button>
+  </div>
+  <p class="muted xs center" style="margin-top:.6rem">{{ prompt|length }} caratteri ·
+    <a href="https://claude.ai/new" target="_blank" rel="noopener">apri claude.ai ↗</a></p>
+</div>
+
+<div class="section-title" id="importa">2 · Importa la risposta</div>
+{% if error %}<div class="card error small">{{ error }}</div>{% endif %}
+<form method="post" action="/piano/importa" class="card">
+  <label class="field"><span>Risposta dell'assistente</span>
+    <textarea name="text" rows="8" class="mono" required placeholder="Incolla qui la risposta (anche tutta: trovo io il blocco JSON)">{{ pasted }}</textarea>
+  </label>
+  <div class="field-row">
+    <label class="field"><span>Settimana dal</span><input type="date" name="week_start" value="{{ week_start }}" required></label>
+    <label class="field"><span>Fatto con</span><input name="source" value="Claude" list="assistants">
+      <datalist id="assistants"><option>Claude</option><option>Claude Opus</option><option>Claude Sonnet</option><option>ChatGPT</option><option>Gemini</option></datalist>
+    </label>
+  </div>
+  <button class="block">{{ icon('check', 18) }} Importa piano</button>
+  <p class="muted xs center" style="margin-top:.6rem">Diventa il piano attivo; quello attuale resta nello storico.</p>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const text = () => document.getElementById('prompt').value;
+async function sharePrompt() {
+  if (navigator.share) { try { await navigator.share({text: text()}); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  if (navigator.clipboard) { await navigator.clipboard.writeText(text()); return toast('Testo copiato'); }
+  const ta = document.getElementById('prompt'); ta.removeAttribute('readonly'); ta.select();
+  document.execCommand('copy'); ta.setAttribute('readonly', ''); toast('Testo copiato');
+}
+function downloadPrompt() {
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([text()], {type: 'text/markdown'})), download: 'piano-per-claude.md'});
+  a.click(); URL.revokeObjectURL(a.href);
+}
+</script>
+{% endblock %}

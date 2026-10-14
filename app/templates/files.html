@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Esami{% endblock %}
+{% block heading %}Esami{% endblock %}
+
+{% block content %}
+<form method="post" action="/file/carica" enctype="multipart/form-data" id="upform">
+  <label class="upload-zone" id="zone">
+    {{ icon('upload', 30) }}
+    <strong>Carica un referto PDF</strong>
+    <span class="small">Viene anonimizzato sul server prima di qualunque uso</span>
+    <input type="file" name="upload" accept="application/pdf" required
+           onchange="document.getElementById('zone').classList.add('busy'); this.form.submit()">
+  </label>
+</form>
+
+{% if files %}
+<div class="section-title">I referti di {{ me.name }}</div>
+<div class="card flush list">
+  {% for f in files %}
+  <a href="/file/{{ f.id }}">
+    <span class="file-ico">{{ icon('file', 22) }}</span>
+    <span class="grow">
+      <span class="title" style="display:block">{{ f.filename }}</span>
+      <span class="muted xs">{{ ('Esame del ' ~ f.exam_date|itdate) if f.exam_date else ('Caricato il ' ~ f.uploaded_at|itdate) }}</span>
+    </span>
+    {% if not f.approved %}<span class="tag warn">da rivedere</span>
+    {% elif f.has_labs %}<span class="tag">valori pronti</span>
+    {% else %}<span class="tag">approvato</span>{% endif %}
+    <span class="muted">{{ icon('chevron-right', 18) }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <p>Nessun referto caricato.</p>
+</div>
+{% endif %}
+
+<div class="card tint small row" style="align-items:flex-start">
+  {{ icon('shield', 22) }}
+  <span>Il PDF resta sul server. Il testo viene anonimizzato e lo controlli tu: solo il testo che approvi viene usato dall'assistente.</span>
+</div>
+{% endblock %}

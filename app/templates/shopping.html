@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Spesa{% endblock %}
+
+{% block appbar %}
+{% set total = groups.values()|map('length')|sum %}
+{% set done = namespace(n=0) %}
+{% for items in groups.values() %}{% for it in items %}{% if it.checked %}{% set done.n = done.n + 1 %}{% endif %}{% endfor %}{% endfor %}
+<div class="grow">
+  <h1>Spesa</h1>
+  <span class="sub" id="count" data-total="{{ total }}" data-done="{{ done.n }}">{{ done.n }} di {{ total }} nel carrello</span>
+</div>
+<button class="iconbtn" data-open="menu" aria-label="Altre azioni">{{ icon('list', 20) }}</button>
+{% endblock %}
+
+{% block content %}
+{% set total = groups.values()|map('length')|sum %}
+{% if total %}
+<div class="progress" aria-hidden="true"><div id="bar" style="width:0"></div></div>
+{% endif %}
+
+{% if not plan and not total %}
+<div class="empty-state">
+  {{ icon('cart', 48) }}
+  <h2>Lista vuota</h2>
+  <p>Genera un piano settimanale: la lista si crea da sola. Puoi anche aggiungere voci a mano.</p>
+  <a href="/piano" class="btn">Vai al piano</a>
+</div>
+{% endif %}
+
+{% for cat, items in groups.items() %}
+<section class="card flush shop-group">
+  <h2>{{ cat }}</h2>
+  <ul class="shop">
+    {% for it in items %}
+    <li class="{{ 'done' if it.checked }}">
+      <label>
+        <input type="checkbox" {{ 'checked' if it.checked }} data-id="{{ it.id }}">
+        <span class="tick">{{ icon('check', 16) }}</span>
+        <span class="grow name">{{ it.name }}</span>
+        {% if it.manual %}<span class="tag grey">extra</span>{% endif %}
+        <span class="qty">{{ it|qty }}</span>
+      </label>
+      {% if it.manual %}
+      <form method="post" action="/spesa/{{ it.id }}/elimina"><button class="iconbtn plain" aria-label="Elimina {{ it.name }}">{{ icon('x', 18) }}</button></form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+<button class="fab" data-open="add" aria-label="Aggiungi voce">{{ icon('plus', 26) }}</button>
+
+<dialog class="sheet" id="add">
+  <div class="sheet-inner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Aggiungi alla lista</h2><button type="button" class="iconbtn plain" data-close aria-label="Chiudi">{{ icon('x') }}</button></div>
+    <form method="post" action="/spesa/aggiungi">
+      <label class="field"><span>Cosa</span><input name="name" required placeholder="es. carta forno" autocomplete="off"></label>
+      <div class="field-row">
+        <label class="field"><span>Quantità</span><input name="quantity" inputmode="decimal" placeholder="es. 2"></label>
+        <label class="field"><span>Unità</span><input name="unit" placeholder="pz, g, kg…"></label>
+      </div>
+      <label class="field"><span>Reparto</span>
+        <select name="category">{% for c in categories %}<option {{ 'selected' if c == 'Altro' }}>{{ c }}</option>{% endfor %}</select>
+      </label>
+      <button class="block">{{ icon('plus', 18) }} Aggiungi</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="sheet" id="menu">
+  <div class="sheet-inner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Lista della spesa</h2><button type="button" class="iconbtn plain" data-close aria-label="Chiudi">{{ icon('x') }}</button></div>
+    <div class="menu-list">
+      <button type="button" onclick="copyList()">{{ icon('copy', 20) }} Copia o condividi (solo da prendere)</button>
+      {% if plan %}
+      <form method="post" action="/spesa/rigenera"><button>{{ icon('refresh', 20) }} Ricalcola dal piano</button></form>
+      {% endif %}
+      <form method="post" action="/spesa/svuota-spuntati"><button class="danger">{{ icon('trash', 20) }} Rimuovi gli extra già presi</button></form>
+    </div>
+  </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const count = document.getElementById('count');
+function updateProgress() {
+  const total = document.querySelectorAll('.shop input').length;
+  const done = document.querySelectorAll('.shop input:checked').length;
+  count.textContent = `${done} di ${total} nel carrello`;
+  const bar = document.getElementById('bar');
+  if (bar) bar.style.width = total ? `${(done / total) * 100}%` : 0;
+}
+document.querySelectorAll('.shop input').forEach(el => el.addEventListener('change', async () => {
+  el.closest('li').classList.toggle('done', el.checked);
+  updateProgress();
+  if (navigator.vibrate) navigator.vibrate(10);
+  const r = await fetch(`/spesa/${el.dataset.id}/toggle`, {method: 'POST'}).catch(() => null);
+  if (!r || !r.ok) { el.checked = !el.checked; el.closest('li').classList.toggle('done', el.checked); updateProgress(); }
+}));
+updateProgress();
+
+async function copyList() {
+  const lines = [];
+  document.querySelectorAll('.shop-group').forEach(g => {
+    const items = [...g.querySelectorAll('li:not(.done)')];
+    if (!items.length) return;
+    lines.push(`\n${g.querySelector('h2').textContent}`);
+    items.forEach(li => {
+      const qty = li.querySelector('.qty').textContent.trim();
+      lines.push(`- ${li.querySelector('.name').textContent}${qty ? ' (' + qty + ')' : ''}`);
+    });
+  });
+  const text = lines.join('\n').trim();
+  document.getElementById('menu').close();
+  if (navigator.share) { try { await navigator.share({text}); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  if (navigator.clipboard) { await navigator.clipboard.writeText(text); return toast('Lista copiata'); }
+  // Su http (non sicuro) clipboard e share non esistono: si usa il vecchio metodo.
+  const ta = Object.assign(document.createElement('textarea'), {value: text});
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  toast('Lista copiata');
+}
+</script>
+{% endblock %}

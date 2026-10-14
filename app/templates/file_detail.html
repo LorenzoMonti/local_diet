@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ f.filename }}{% endblock %}
+
+{% block appbar %}
+<a href="/file" class="iconbtn" aria-label="Indietro">{{ icon('back', 20) }}</a>
+<div class="grow">
+  <h1 style="font-size:1.1rem">{{ f.filename }}</h1>
+  <span class="sub">{{ ('Esame del ' ~ f.exam_date|itdate) if f.exam_date else ('Caricato il ' ~ f.uploaded_at|itdate) }}</span>
+</div>
+<a href="/file/{{ f.id }}/pdf" target="_blank" class="iconbtn" aria-label="Apri PDF originale">{{ icon('external', 19) }}</a>
+{% endblock %}
+
+{% block content %}
+{% set step = 3 if f.labs else (2 if f.approved else 1) %}
+<div class="steps" aria-hidden="true">{% for i in range(3) %}<span class="{{ 'on' if i < step }}"></span>{% endfor %}</div>
+
+{% if error %}<div class="card error small">{{ error }}</div>{% endif %}
+
+{% if f.anon_method %}
+{% set ok = f.anon_method.startswith(('rizzo-pii', 'nessuna (')) %}
+<div class="card {{ 'tint' if ok else 'warn' }} small row" style="align-items:flex-start">
+  {{ icon('shield', 20) }}
+  <div class="grow">
+    Anonimizzazione: <strong>{{ f.anon_method }}</strong>
+    {% if not ok %}<br>Controlla con particolare attenzione, oppure riprova quando rizzo-pii è attivo.{% endif %}
+    {% if f.anon_method.startswith('nessuna') %}<br><span class="xs">Il testo resta sul server; verso un assistente esterno escono solo i valori estratti.</span>{% endif %}
+    <form method="post" action="/file/{{ f.id }}/rianonimizza" onsubmit="return confirm('Rifare l\'anonimizzazione? Le modifiche manuali andranno perse.')">
+      <button class="link xs">Rifai anonimizzazione</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="section-title">1 · Controlla il testo anonimizzato</div>
+<form method="post" action="/file/{{ f.id }}/approva" class="card">
+  {% if not f.anon_text %}
+  <p class="small" style="color:var(--danger)">Non è stato possibile estrarre testo (forse è una scansione): puoi trascrivere i valori qui sotto.</p>
+  {% endif %}
+  <p class="muted xs">Verifica che non restino nome, codice fiscale, indirizzo, medico o altri dati personali. Le parti oscurate
+    appaiono come <code>[FULLNAME_1]</code> o <code>[RIMOSSO]</code>. Puoi modificare il testo.</p>
+  <textarea name="anon_text" rows="9" class="mono">{{ f.anon_text or '' }}</textarea>
+  <label class="field" style="margin-top:.8rem"><span>Data dell'esame</span><input type="date" name="exam_date" value="{{ f.exam_date or '' }}"></label>
+  <button class="block">{{ icon('check', 18) }} {{ 'Salva modifiche' if f.approved else 'Approva testo' }}</button>
+  {% if f.approved %}<p class="center xs" style="margin-top:.6rem"><span class="tag">approvato</span></p>{% endif %}
+</form>
+{% if f.approved %}
+<form method="post" action="/file/{{ f.id }}/revoca" class="center"><button class="link xs">Revoca approvazione (l'assistente non lo userà più)</button></form>
+{% endif %}
+
+<div class="section-title">2 · Valori</div>
+{% if f.approved %}
+  {% if f.labs and f.labs.results %}
+  <div class="card flush">
+    {% for r in f.labs.results %}
+    <div class="lab-row {{ r.flag }}">
+      <div class="grow">
+        <div style="font-weight:600">{{ r.name }}</div>
+        <div class="muted xs">rif. {{ r.reference_range or 'n/d' }}</div>
+      </div>
+      <div class="val">{% if r.flag == 'alto' %}▲ {% elif r.flag == 'basso' %}▼ {% endif %}{{ r.value }} <span class="muted xs" style="font-weight:500">{{ r.unit }}</span></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <form method="post" action="/file/{{ f.id }}/estrai">
+    <button class="block {{ 'soft' if f.labs }}">{{ icon('sparkle', 18) }} {{ 'Estrai di nuovo' if f.labs else 'Estrai i valori' }}</button>
+  </form>
+{% else %}
+  <p class="card muted small">Approva il testo per poter estrarre i valori.</p>
+{% endif %}
+
+<form method="post" action="/file/{{ f.id }}/elimina" class="center" style="margin-top:1.5rem" onsubmit="return confirm('Eliminare file e dati estratti?')">
+  <button class="link danger small">Elimina referto</button>
+</form>
+{% endblock %}

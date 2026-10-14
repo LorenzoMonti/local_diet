@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Profilo{% endblock %}
+{% block heading %}Profilo{% endblock %}
+
+{% block content %}
+{% set p = me.profile %}
+
+<div class="card row">
+  <span class="avatar lg">{{ me.name[:1]|upper }}</span>
+  <div class="grow">
+    <div style="font-weight:700;font-size:1.2rem">{{ me.name }}</div>
+    <a href="/chi-sei" class="small row" style="gap:.3rem">{{ icon('swap', 16) }} Cambia utente</a>
+  </div>
+</div>
+
+<form method="post" action="/profilo" id="profile-form">
+  <div class="section-title">Generale</div>
+  <div class="card">
+    <label class="field"><span>Nome visualizzato</span><input name="name" value="{{ me.name }}" autocomplete="off"></label>
+    <label class="field"><span>Regime alimentare</span>
+      <input name="diet" value="{{ p.diet }}" placeholder="vegetariano, vegano…" list="diets">
+      <datalist id="diets"><option>vegano</option><option>vegetariano</option><option>pescetariano</option><option>flexitariano</option><option>onnivoro</option></datalist>
+    </label>
+    <label class="field"><span>Allergie / intolleranze</span><input name="allergies" value="{{ p.allergies }}" placeholder="es. frutta a guscio, lattosio"></label>
+    <label class="field"><span>Cibi preferiti</span><input name="likes" value="{{ p.likes }}"></label>
+    <label class="field" style="margin-bottom:0"><span>Cibi non graditi</span><input name="dislikes" value="{{ p.dislikes }}"></label>
+  </div>
+
+  <div class="section-title">Salute e obiettivi</div>
+  <div class="card">
+    <label class="field"><span>Condizioni / esigenze di salute</span>
+      <textarea name="conditions" rows="2" placeholder="es. colesterolo LDL alto, ferritina bassa…">{{ p.conditions }}</textarea></label>
+    <label class="field"><span>Obiettivi</span><input name="goals" value="{{ p.goals }}" placeholder="es. ridurre LDL, più energia"></label>
+    <label class="field"><span>Attività fisica</span><input name="activity" value="{{ p.activity }}" placeholder="es. corsa 3 volte a settimana"></label>
+    <div class="field-row">
+      <label class="field"><span>Sesso</span><input name="sex" value="{{ p.sex }}"></label>
+      <label class="field"><span>Età</span><input name="age" value="{{ p.age }}" inputmode="numeric"></label>
+      <label class="field"><span>Altezza (cm)</span><input name="height_cm" value="{{ p.height_cm }}" inputmode="numeric"></label>
+      <label class="field"><span>Peso (kg)</span><input name="weight_kg" value="{{ p.weight_kg }}" inputmode="decimal"></label>
+    </div>
+    <label class="field" style="margin-bottom:0"><span>Altro</span><textarea name="notes" rows="2">{{ p.notes }}</textarea></label>
+  </div>
+
+  <div class="section-title">Privacy</div>
+  <div class="card warn" style="color:inherit">
+    <label class="field"><span class="row" style="gap:.3rem">{{ icon('shield', 15) }} Termini da oscurare nei referti</span>
+      <input name="redact_terms" value="{{ p.redact_terms }}" placeholder="Cognome, città, nome del medico…" style="background:var(--surface)"></label>
+    <p class="xs muted" style="margin:0">Separati da virgola. Non vengono mai inviati al modello: servono solo a oscurare i referti.</p>
+  </div>
+
+  <div class="save-bar">
+    <span class="grow small muted">Le modifiche valgono dal prossimo piano o messaggio</span>
+    <button>Salva</button>
+  </div>
+</form>
+
+<div class="section-title" id="note">Note per la dieta</div>
+<div class="card flush">
+  {% for n in notes %}
+  <div class="note-item">
+    <span class="tag {{ 'grey' if not n.user_name }}">{{ n.user_name or 'entrambi' }}</span>
+    <span class="grow small">{{ n.content }}{% if n.source == 'chat' %} <span class="muted xs">· dalla chat</span>{% endif %}</span>
+    <form method="post" action="/note/{{ n.id }}/elimina"><button class="iconbtn plain" aria-label="Elimina nota">{{ icon('x', 16) }}</button></form>
+  </div>
+  {% else %}
+  <p class="muted small" style="padding:1rem;margin:0">Nessuna nota. L'assistente le salva da solo quando in chat emergono preferenze utili.</p>
+  {% endfor %}
+</div>
+<form method="post" action="/note" class="card">
+  <label class="field"><span>Aggiungi una nota</span><input name="content" placeholder="es. Il tofu solo marinato" required></label>
+  <div class="row between">
+    <div class="checkpills">
+      <label class="radio-pill"><input type="radio" name="about" value="me" checked><span>Solo io</span></label>
+      <label class="radio-pill"><input type="radio" name="about" value="both"><span>Entrambi</span></label>
+    </div>
+    <button class="sm">{{ icon('plus', 16) }} Aggiungi</button>
+  </div>
+</form>
+
+<div class="section-title">App</div>
+<div class="card flush list">
+  <a href="/impostazioni"><span class="file-ico">{{ icon('sliders', 20) }}</span><span class="grow"><span class="title" style="display:block">Modello AI</span><span class="muted xs">{{ model_label }}</span></span>{{ icon('chevron-right', 18) }}</a>
+  <a href="/chi-sei"><span class="file-ico">{{ icon('swap', 20) }}</span><span class="grow title">Cambia utente</span>{{ icon('chevron-right', 18) }}</a>
+</div>
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+
+{% block appbar %}
+<button class="iconbtn" data-open="convs" aria-label="Chat precedenti">{{ icon('list', 20) }}</button>
+<div class="grow">
+  <h1 style="font-size:1.15rem" id="conv-title">{{ conv.title if conv else 'Chat' }}</h1>
+  <span class="sub">Assistente nutrizionale</span>
+</div>
+<form method="post" action="/chat/nuova"><button class="iconbtn" aria-label="Nuova chat">{{ icon('plus', 20) }}</button></form>
+{% endblock %}
+
+{% block content %}
+{% if not conv %}
+  <div class="empty-state">
+    {{ icon('chat', 48) }}
+    <h2>Chiedi all'assistente</h2>
+    <p>Conosce profili, note, esami approvati e piano della settimana. Può salvare note, cambiare pasti e aggiungere voci alla spesa.</p>
+    <form method="post" action="/chat/nuova"><button>{{ icon('plus', 18) }} Nuova chat</button></form>
+  </div>
+{% else %}
+  <div class="messages" id="messages">
+    {% for m in msgs %}
+    <div class="msg {{ m.role }}">{% if m.role == 'user' %}{{ m.display }}{% else %}{{ m.display|md|safe }}{% endif %}</div>
+    {% else %}
+    <div class="empty-state" id="hint">
+      <h2>Di cosa parliamo?</h2>
+      <div class="suggestions">
+        {% for s in ['Questa settimana ho poco tempo a pranzo: come adatto il piano?',
+                     'Cosa posso mangiare come spuntino per il ferro?',
+                     'Sostituisci la cena di stasera con qualcosa di più leggero',
+                     'Spiegami i miei ultimi esami in parole semplici'] %}
+        <button type="button" class="suggest">{{ s }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if stale %}
+  <div class="card warn small">Questa chat è stata creata con un altro provider: puoi rileggerla, ma per continuare apri una nuova chat.</div>
+  {% else %}
+  <form id="composer" class="composer" data-no-lock>
+    <textarea id="input" rows="1" placeholder="Scrivi un messaggio…" aria-label="Messaggio" required></textarea>
+    <button id="send" aria-label="Invia">{{ icon('send', 22) }}</button>
+  </form>
+  {% endif %}
+{% endif %}
+
+<dialog class="sheet" id="convs">
+  <div class="sheet-inner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h2>Le tue chat</h2>
+      <button type="button" class="iconbtn plain" data-close aria-label="Chiudi">{{ icon('x') }}</button>
+    </div>
+    <form method="post" action="/chat/nuova" style="margin-bottom:.8rem"><button class="block soft">{{ icon('plus', 18) }} Nuova chat</button></form>
+    {% if convs %}
+    <div class="card flush list" style="box-shadow:none;background:var(--surface-2)">
+      {% for c in convs %}
+      <a href="/chat/{{ c.id }}" {{ 'aria-current=page' if conv and conv.id == c.id }}>
+        <span class="grow"><span class="title" style="display:block">{{ c.title }}</span><span class="muted xs">{{ c.created_at|itdate }}</span></span>
+        {% if conv and conv.id == c.id %}<span class="tag">aperta</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if conv %}
+    <form method="post" action="/chat/{{ conv.id }}/elimina" class="center" style="margin-top:1rem" onsubmit="return confirm('Eliminare questa chat?')">
+      <button class="link danger small">Elimina la chat aperta</button>
+    </form>
+    {% endif %}
+  </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+{% if conv and not stale %}
+<script>
+const box = document.getElementById('messages');
+const input = document.getElementById('input');
+const send = document.getElementById('send');
+const form = document.getElementById('composer');
+const scrollDown = () => { box.scrollTop = box.scrollHeight; };
+scrollDown();
+
+// textarea che cresce con il testo
+const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; };
+input.addEventListener('input', grow);
+
+// Invio = manda solo con tastiera fisica; su telefono Invio va a capo e si usa il pulsante.
+const physicalKeyboard = matchMedia('(hover: hover) and (pointer: fine)').matches;
+input.addEventListener('keydown', e => {
+  if (physicalKeyboard && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+});
+
+document.querySelectorAll('.suggest').forEach(b => b.addEventListener('click', () => {
+  input.value = b.textContent.trim(); grow(); form.requestSubmit();
+}));
+
+function bubble(role, text) {
+  document.getElementById('hint')?.remove();
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.textContent = text || '';
+  box.appendChild(el);
+  scrollDown();
+  return el;
+}
+
+async function renderMd(el, text) {
+  const r = await fetch('/anteprima-md', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text})});
+  el.innerHTML = await r.text();
+}
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text || send.disabled) return;
+  input.value = ''; grow(); send.disabled = true;
+  bubble('user', text);
+  let current = bubble('assistant thinking', '');
+  let acc = '';
+  try {
+    const res = await fetch('/chat/{{ conv.id }}/invia', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text}),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!line.startsWith('data: ')) continue;
+        const ev = JSON.parse(line.slice(6));
+        if (ev.type === 'text') {
+          current.classList.remove('thinking');
+          acc += ev.text; current.textContent = acc;
+        } else if (ev.type === 'tool') {
+          bubble('tool', `${ev.label} · ${ev.detail}`);
+          box.appendChild(current);
+        } else if (ev.type === 'break') {
+          if (acc) await renderMd(current, acc); else current.remove();
+          current = bubble('assistant thinking', ''); acc = '';
+        } else if (ev.type === 'done') {
+          if (acc) await renderMd(current, acc); else current.remove();
+          const title = document.getElementById('conv-title');
+          if (title.textContent.trim() === 'Nuova chat') title.textContent = text.slice(0, 60);
+        } else if (ev.type === 'error') {
+          current.classList.remove('thinking');
+          current.classList.add('error'); current.textContent = ev.message;
+        }
+        scrollDown();
+      }
+    }
+  } catch (err) {
+    current.classList.remove('thinking'); current.classList.add('error');
+    current.textContent = 'Connessione interrotta: ' + err;
+  } finally {
+    send.disabled = false;
+    if (physicalKeyboard) input.focus();
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

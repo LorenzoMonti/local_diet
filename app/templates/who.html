@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Chi sei?{% endblock %}
+{% block content %}
+<section class="who-wrap">
+  <div class="brand">{{ icon('leaf', 34) }}</div>
+  <h1>Dieta di casa</h1>
+  <p class="muted">Chi sta usando l'app?</p>
+  <div class="who-grid">
+    {% for u in users %}
+    <form method="post" action="/chi-sei/{{ u.id }}">
+      <button><span class="avatar lg">{{ u.name[:1]|upper }}</span>{{ u.name }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  <p class="muted xs">Il nome si cambia dal Profilo.</p>
+</section>
+{% endblock %}

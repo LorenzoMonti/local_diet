@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>{% block title %}Dieta{% endblock %} · Dieta di casa</title>
+  <meta name="theme-color" content="#f4f5ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1310" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Dieta">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon-180.png">
+  <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body class="page-{{ page }}{{ ' has-nav' if me }}">
+{% if me %}
+<header class="appbar">
+  {% block appbar %}
+  <h1>{% block heading %}{% endblock %}</h1>
+  {% endblock %}
+  <a href="/profilo" class="avatar" title="{{ me.name }}">{{ me.name[:1]|upper }}</a>
+</header>
+{% endif %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+{% if me %}
+<footer class="foot">Modello: <a href="/impostazioni">{{ model_label }}</a></footer>
+<nav class="tabbar" aria-label="Navigazione principale">
+  <span class="brand-rail">{{ icon('leaf', 28) }}</span>
+  {% for href, key, label, ic in [('/piano', 'plan', 'Piano', 'calendar'), ('/spesa', 'shopping', 'Spesa', 'cart'),
+                                  ('/chat', 'chat', 'Chat', 'chat'), ('/file', 'files', 'Esami', 'file'),
+                                  ('/profilo', 'profile', 'Profilo', 'user')] %}
+  {% set on = page == key or (key == 'files' and page == 'file_detail') or (key == 'profile' and page == 'settings') %}
+  <a href="{{ href }}" class="{{ 'on' if on }}" {{ 'aria-current=page' if on }}>
+    <span class="pill">{{ icon(ic, 22) }}</span>{{ label }}
+  </a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% set toast = request.query_params.get('msg') %}
+{% if toast %}<div class="toast" role="status">{{ toast }}</div>{% endif %}
+
+<script>
+// Sheet: <button data-open="id"> apre il dialog; data-close o tap sullo sfondo lo chiude.
+document.addEventListener('click', e => {
+  const opener = e.target.closest('[data-open]');
+  if (opener) { document.getElementById(opener.dataset.open)?.showModal(); return; }
+  if (e.target.closest('[data-close]')) { e.target.closest('dialog')?.close(); return; }
+  if (e.target.tagName === 'DIALOG') e.target.close();
+});
+function toast(text) {
+  const t = Object.assign(document.createElement('div'), {className: 'toast', textContent: text, role: 'status'});
+  document.body.appendChild(t); setTimeout(() => t.remove(), 3500);
+}
+// Pulisce ?msg= dall'URL così il toast non ricompare al refresh.
+if (location.search.includes('msg=')) {
+  const u = new URL(location); u.searchParams.delete('msg'); history.replaceState(null, '', u);
+}
+// Disabilita il pulsante del form durante l'invio (evita doppi tap).
+document.addEventListener('submit', e => {
+  if (e.defaultPrevented || e.target.dataset.noLock !== undefined) return;
+  const b = e.submitter || e.target.querySelector('button:not([type=button])');
+  if (b) setTimeout(() => { b.disabled = true; }, 0);
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

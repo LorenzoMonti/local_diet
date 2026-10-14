@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Impostazioni{% endblock %}
+
+{% block appbar %}
+<a href="/profilo" class="iconbtn" aria-label="Indietro">{{ icon('back', 20) }}</a>
+<div class="grow"><h1>Modello AI</h1><span class="sub">{{ provider }}{% if base_url %} · {{ base_url }}{% endif %}</span></div>
+{% endblock %}
+
+{% block content %}
+{% if error %}<div class="card error small">{{ error }}</div>{% endif %}
+
+{% if models is none %}
+  <div class="card small">Con questo provider il modello si configura dal file <code>.env</code>
+    (attuale: <code>{{ default_model or '—' }}</code>).</div>
+{% else %}
+<div class="card tint small">
+  Scegli un modello per la <strong>chat</strong> (serve il supporto agli <em>strumenti</em>) e uno per <strong>piano ed esami</strong>
+  (meglio con <em>JSON</em> e contesto ampio). I modelli gratuiti cambiano spesso: premi <em>Prova</em> prima di salvare.
+</div>
+
+<form method="post" action="/impostazioni" data-no-lock>
+  <div class="row" style="margin-bottom:.6rem">
+    <input id="filter" placeholder="Cerca modello…" type="search" class="grow">
+    <a class="btn sm soft" href="/impostazioni{{ '' if show_all else '?tutti=1' }}" style="white-space:nowrap">{{ 'Solo gratis' if show_all else 'Tutti' }}</a>
+  </div>
+
+  <div class="card flush">
+    <div class="model-card">
+      <div class="row between">
+        <span class="small">Piano ed esami: <strong>stesso modello della chat</strong></span>
+        <label class="radio-pill"><input type="radio" name="model_structured" value="same" {{ 'checked' if not model_structured }}><span>Piano</span></label>
+      </div>
+    </div>
+    {% for m in models %}
+    <div class="model-card {{ 'selected' if m.id in (model_chat, model_structured) }}" data-name="{{ (m.name ~ ' ' ~ m.id)|lower }}">
+      <div class="model-name">{{ m.name }}</div>
+      <div class="model-id mono">{{ m.id }}</div>
+      <div class="model-meta">
+        {% if m.tools %}<span class="tag">strumenti ✓</span>{% elif m.tools is not none %}<span class="tag grey">no strumenti</span>{% endif %}
+        {% if m.json %}<span class="tag">JSON ✓</span>{% elif m.json is not none %}<span class="tag grey">no JSON</span>{% endif %}
+        {% if m.context %}<span class="tag grey">{{ m.context // 1000 }}k contesto</span>{% endif %}
+        {% if m.free == false %}<span class="tag warn">a pagamento</span>{% endif %}
+      </div>
+      <div class="model-actions">
+        <label class="radio-pill"><input type="radio" name="model_chat" value="{{ m.id }}" {{ 'checked' if m.id == model_chat }}><span>{{ icon('chat', 14) }} Chat</span></label>
+        <label class="radio-pill"><input type="radio" name="model_structured" value="{{ m.id }}" {{ 'checked' if m.id == model_structured }}><span>{{ icon('calendar', 14) }} Piano</span></label>
+        <button type="button" class="sm soft" style="margin-left:auto" onclick="testModel('{{ m.id }}', this)">Prova</button>
+      </div>
+    </div>
+    {% else %}
+    <p class="muted small" style="padding:1rem;margin:0">Nessun modello trovato.</p>
+    {% endfor %}
+  </div>
+
+  <label class="field"><span>Oppure scrivi l'id del modello per la chat</span>
+    <input name="custom_chat" autocomplete="off" autocapitalize="off"
+      placeholder="{{ model_chat if model_chat and model_chat not in (models|map(attribute='id')|list) else 'es. provider/modello:free' }}">
+  </label>
+
+  <div class="save-bar">
+    <span class="grow xs muted" style="overflow:hidden;text-overflow:ellipsis">Attuale: {{ model_label }}</span>
+    <button>Salva</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('filter')?.addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('.model-card[data-name]').forEach(el => { el.hidden = q && !el.dataset.name.includes(q); });
+});
+async function testModel(id, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await fetch('/impostazioni/prova', {method: 'POST', body: new URLSearchParams({model: id})}).then(r => r.json());
+    btn.textContent = r.ok ? '✓ Ok' : '✗ Errore';
+    toast(r.message);
+  } catch (e) {
+    btn.textContent = '✗ Errore';
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

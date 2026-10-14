@@ -1,0 +1,34 @@
+{# Icone SVG inline (tratto 24x24): nessuna dipendenza esterna. #}
+{% macro icon(name, size=22, cls="") -%}
+<svg class="ico {{ cls }}" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'calendar' %}<rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/>
+{%- elif name == 'cart' %}<path d="M3 4h2l2.3 10.6a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 1.9-1.5L20.5 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/>
+{%- elif name == 'chat' %}<path d="M20.5 11.5a8 8 0 0 1-11.7 7.1L4 20l1.3-4.4a8 8 0 1 1 15.2-4.1z"/>
+{%- elif name == 'file' %}<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>
+{%- elif name == 'user' %}<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
+{%- elif name == 'sliders' %}<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>
+{%- elif name == 'plus' %}<path d="M12 5v14M5 12h14"/>
+{%- elif name == 'send' %}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- elif name == 'list' %}<path d="M4 6h16M4 12h16M4 18h10"/>
+{%- elif name == 'sparkle' %}<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>
+{%- elif name == 'check' %}<path d="M5 12.5l4.5 4.5L19 7.5"/>
+{%- elif name == 'trash' %}<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>
+{%- elif name == 'download' %}<path d="M12 4v12M7 11l5 5 5-5M5 20h14"/>
+{%- elif name == 'upload' %}<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>
+{%- elif name == 'copy' %}<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+{%- elif name == 'refresh' %}<path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.5"/><path d="M20 3.5v5h-5"/>
+{%- elif name == 'x' %}<path d="M6 6l12 12M18 6L6 18"/>
+{%- elif name == 'chevron' %}<path d="M6 9l6 6 6-6"/>
+{%- elif name == 'back' %}<path d="M15 5l-7 7 7 7"/>
+{%- elif name == 'chevron-right' %}<path d="M9 6l6 6-6 6"/>
+{%- elif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{%- elif name == 'leaf' %}<path d="M5 19C5 10.5 11 5 20 5c0 9-6 14.5-14.5 14.5z"/><path d="M5 19.5l8-8"/>
+{%- elif name == 'external' %}<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>
+{%- elif name == 'swap' %}<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>
+{%- elif name == 'note' %}<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5M8 9h8M8 13h4"/>
+{%- elif name == 'shield' %}<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>
+{%- elif name == 'info' %}<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>
+{%- endif %}
+</svg>
+{%- endmacro %}
