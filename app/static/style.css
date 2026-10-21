@@ -243,6 +243,12 @@ details.meal-card { padding: 0; overflow: hidden; }
 .meal-emoji { width: 48px; height: 48px; border-radius: 15px; display: grid; place-items: center; font-size: 1.5rem; background: var(--surface-2); flex: none; }
 .meal-type { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--muted); display: flex; gap: .5rem; align-items: center; }
 .meal-title { font-weight: 650; line-height: 1.25; margin-top: 1px; }
+.fav-mark { display: inline-flex; vertical-align: -1px; margin-left: .35rem; color: #e0a200; }
+.fav-mark .ico { fill: currentColor; }
+.fav-btn { margin-top: .9rem; background: var(--surface-2); color: var(--muted); font-weight: 500; }
+.fav-btn.on { background: #fff4d1; color: #8a6400; }
+.fav-btn.on .ico { fill: #e0a200; stroke: #e0a200; }
+@media (prefers-color-scheme: dark) { .fav-btn.on { background: #3a3013; color: #f2c94c; } }
 .meal-card .chev { color: var(--muted); transition: transform .2s; }
 .meal-card[open] .chev { transform: rotate(180deg); }
 .meal-body { padding: .85rem 1rem 1rem; border-top: 1px solid var(--line); }
@@ -370,3 +376,20 @@ body.page-chat .foot { display: none; }
 body.page-shopping main { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 6rem); }
 .week-select { padding-right: 0 !important; text-decoration: underline dotted; text-underline-offset: 3px; }
 .step-n { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: .85rem; flex: none; }
+
+/* Esami: valori da tenere d'occhio */
+.trend-row { display: flex; gap: .8rem; align-items: center; padding: .8rem 1rem; }
+.trend-row + .trend-row { border-top: 1px solid var(--line); }
+.trend-hist { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .3rem; }
+.trend-hist small { color: var(--muted); }
+.trend-val { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; flex: none; }
+.trend-val small { color: var(--muted); font-size: .72rem; }
+.alto, .basso { color: var(--danger); }
+.trend-val.normale b { color: var(--accent); }
+.trend-badge { font-size: .7rem; padding: .05rem .45rem; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.trend-badge.good { color: var(--accent); }
+.trend-badge.bad { color: var(--danger); }
+.normal-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .8rem; }
+.normal-chips span { font-size: .78rem; padding: .2rem .6rem; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+.fav-mark[hidden] { display: none; }
+.card.list { margin-bottom: .9rem; }  /* .list azzera i margini: la card riprende la spaziatura normale */

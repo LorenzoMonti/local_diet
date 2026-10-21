@@ -61,6 +61,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     context_hash TEXT,
     provider TEXT
 );
+CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL UNIQUE,
+    meal TEXT,
+    data TEXT NOT NULL,          -- il pasto com'era nel piano (descrizione, ingredienti, varianti)
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -149,6 +156,12 @@ def approved_labs() -> list[dict]:
             "WHERE f.approved = 1 ORDER BY f.user_id, COALESCE(f.exam_date, f.uploaded_at)"
         ).fetchall()
     return [{**dict(r), "labs": json.loads(r["labs"]) if r["labs"] else None} for r in rows]
+
+
+def favorites() -> list[dict]:
+    with tx() as c:
+        rows = c.execute("SELECT * FROM favorites ORDER BY meal, title").fetchall()
+    return [{**dict(r), "data": json.loads(r["data"])} for r in rows]
 
 
 def get_setting(key: str, default: str | None = None) -> str | None:

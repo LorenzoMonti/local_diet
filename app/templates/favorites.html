@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set meal_emoji = {'colazione': '☕', 'spuntino': '🍎', 'pranzo': '🥗', 'merenda': '🥜', 'cena': '🍲'} %}
+{% block title %}Preferiti{% endblock %}
+
+{% block appbar %}
+<a href="/piano" class="iconbtn" aria-label="Indietro">{{ icon('back', 20) }}</a>
+<div class="grow"><h1>Preferiti</h1><span class="sub">I piatti che vi sono piaciuti</span></div>
+{% endblock %}
+
+{% block content %}
+{% if not favorites %}
+  <div class="empty-state">
+    {{ icon('star', 48) }}
+    <h2>Nessun preferito</h2>
+    <p>Nel piano, tocca la stellina accanto a un piatto che vi è piaciuto: finirà qui e verrà riproposto nei prossimi piani.</p>
+    <a href="/piano" class="btn">{{ icon('calendar', 18) }} Vai al piano</a>
+  </div>
+{% else %}
+  {% for f in favorites %}
+  {% set m = f.data %}
+  <details class="card meal-card">
+    <summary>
+      <span class="meal-emoji">{{ meal_emoji.get(f.meal, '🍽️') }}</span>
+      <span class="grow">
+        <span class="meal-type">{{ f.meal or 'pasto' }}{% if m.prep_minutes %}<span class="row" style="gap:.2rem">{{ icon('clock', 13) }}{{ m.prep_minutes }}′</span>{% endif %}</span>
+        <span class="meal-title" style="display:block">{{ f.title }}</span>
+      </span>
+      <span class="chev">{{ icon('chevron', 20) }}</span>
+    </summary>
+    <div class="meal-body">
+      <p>{{ m.description }}</p>
+      {% if m.per_person %}
+      <div class="person-notes">
+        {% for pp in m.per_person %}<div class="person-note"><span class="tag">{{ pp.person }}</span><span>{{ pp.note }}</span></div>{% endfor %}
+      </div>
+      {% endif %}
+      {% if m.ingredients %}
+      <div class="ing-title">Ingredienti · per due</div>
+      <ul class="ing-list">
+        {% for i in m.ingredients %}<li><span>{{ i.name }}</span><span class="muted">{{ i|qty }}</span></li>{% endfor %}
+      </ul>
+      {% endif %}
+      <form method="post" action="/preferiti/{{ f.id }}/elimina" class="center" style="margin-top:.6rem">
+        <button class="link danger small">Togli dai preferiti</button>
+      </form>
+    </div>
+  </details>
+  {% endfor %}
+  <div class="card tint small row">
+    {{ icon('sparkle', 20) }}
+    <span class="grow">I preferiti vengono passati al modello: nei nuovi piani ne ripropone 2-3 a settimana. Puoi anche chiedere in <a href="/chat"><strong>chat</strong></a> di mettere un preferito in un giorno preciso.</span>
+  </div>
+{% endif %}
+{% endblock %}

@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import anonymize, assistant, db, exchange, pii, shopping
+from . import anonymize, assistant, db, exchange, labs, pii, shopping
 
 BASE = Path(__file__).parent
 
@@ -33,6 +33,8 @@ templates.env.filters["md"] = lambda t: md.markdown((t or "").replace("<", "&lt;
 templates.env.filters["qty"] = shopping.fmt_qty
 templates.env.filters["itdate"] = lambda v, short=False: _itdate(v, short)
 templates.env.globals["icon"] = templates.env.get_template("_icons.html").module.icon
+# Versione del CSS legata al file: a ogni modifica browser e PWA scaricano quello nuovo invece della cache.
+templates.env.globals["css_v"] = int((BASE / "static" / "style.css").stat().st_mtime)
 
 _background: set[asyncio.Task] = set()
 
@@ -130,13 +132,20 @@ def plan_page(request: Request, pid: int | None = None):
     with db.tx() as c:
         plans = [dict(r) for r in c.execute(
             "SELECT id, week_start, created_at, status, error, source FROM plans ORDER BY id DESC LIMIT 20")]
-        row = (c.execute("SELECT * FROM plans WHERE id=?", (pid,)).fetchone() if pid
-               else c.execute("SELECT * FROM plans ORDER BY id DESC LIMIT 1").fetchone())
+        if pid:
+            row = c.execute("SELECT * FROM plans WHERE id=?", (pid,)).fetchone()
+        else:
+            # Di default la settimana in corso; se non c'è, l'ultimo piano creato.
+            today = date.today().isoformat()
+            row = (c.execute("SELECT * FROM plans WHERE status='ready' AND week_start <= ? "
+                             "AND date(week_start, '+6 days') >= ? ORDER BY id DESC LIMIT 1", (today, today)).fetchone()
+                   or c.execute("SELECT * FROM plans ORDER BY id DESC LIMIT 1").fetchone())
     plan = {**dict(row), "data": json.loads(row["data"]) if row["data"] else None} if row else None
     active = db.active_plan()
     next_monday = date.today() + timedelta(days=(7 - date.today().weekday()) % 7)
     return render(request, "plan.html", plan=plan, plans=plans, active_id=active and active["id"],
-                  next_monday=next_monday.isoformat(), meals=assistant.MEALS)
+                  next_monday=next_monday.isoformat(), meals=assistant.MEALS,
+                  fav_titles={f["title"].lower() for f in db.favorites()})
 
 
 @app.post("/piano/genera")
@@ -241,6 +250,37 @@ def plan_delete(pid: int):
     return back("/piano")
 
 
+# --- preferiti -----------------------------------------------------------------
+
+@app.get("/preferiti", response_class=HTMLResponse)
+def favorites_page(request: Request):
+    return render(request, "favorites.html", favorites=db.favorites())
+
+
+@app.post("/preferiti/stella")
+def favorite_toggle(pid: int = Form(...), day: int = Form(...), idx: int = Form(...)):
+    """Aggiunge o toglie dai preferiti il pasto idx del giorno day del piano pid."""
+    with db.tx() as c:
+        r = c.execute("SELECT data FROM plans WHERE id=? AND status='ready'", (pid,)).fetchone()
+        try:
+            meal = json.loads(r["data"])["days"][day]["meals"][idx]
+        except (TypeError, IndexError, KeyError):
+            raise HTTPException(404)
+        title = meal["title"].strip()
+        if c.execute("DELETE FROM favorites WHERE lower(title)=lower(?)", (title,)).rowcount:
+            return {"on": False}
+        c.execute("INSERT INTO favorites (title, meal, data) VALUES (?, ?, ?)",
+                  (title, meal.get("meal"), json.dumps(meal)))
+    return {"on": True}
+
+
+@app.post("/preferiti/{fid}/elimina")
+def favorite_delete(fid: int):
+    with db.tx() as c:
+        c.execute("DELETE FROM favorites WHERE id=?", (fid,))
+    return back("/preferiti")
+
+
 # --- spesa -------------------------------------------------------------------
 
 @app.get("/spesa", response_class=HTMLResponse)
@@ -306,7 +346,8 @@ def files_page(request: Request):
         files = [dict(r) for r in c.execute(
             "SELECT id, filename, uploaded_at, exam_date, approved, labs IS NOT NULL AS has_labs "
             "FROM files WHERE user_id=? ORDER BY id DESC", (request.state.user["id"],))]
-    return render(request, "files.html", files=files)
+    mine = labs.trends(request.state.user["id"])
+    return render(request, "files.html", files=files, trend=mine[0] if mine else None)
 
 
 async def _anonymize_file(me: dict, path: Path, filename: str) -> tuple[str, str]:

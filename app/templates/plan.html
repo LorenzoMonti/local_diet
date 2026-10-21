@@ -15,6 +15,7 @@
   </select>
   {% endif %}
 </div>
+<a href="/preferiti" class="iconbtn" title="Piatti preferiti" aria-label="Piatti preferiti">{{ icon('star', 20) }}</a>
 <a href="/piano/scambia" class="iconbtn" title="Esporta / importa con Claude" aria-label="Esporta o importa con un altro assistente">{{ icon('swap', 19) }}</a>
 {% if plan %}<button class="iconbtn" data-open="gen" title="Nuovo piano" aria-label="Nuovo piano">{{ icon('sparkle', 20) }}</button>{% endif %}
 {% endblock %}
@@ -84,6 +85,7 @@
   </div>
 
   {% for day in d.days %}
+  {% set day_idx = loop.index0 %}
   <section class="day-panel" data-panel="{{ loop.index0 }}" {{ 'hidden' if loop.index0 != ns.sel }}>
     <div class="section-title">{{ day.day }}{% if today in day.day %} · oggi{% endif %}</div>
     {% for m in day.meals %}
@@ -92,7 +94,7 @@
         <span class="meal-emoji">{{ meal_emoji.get(m.meal, '🍽️') }}</span>
         <span class="grow">
           <span class="meal-type">{{ m.meal }}{% if m.prep_minutes %}<span class="row" style="gap:.2rem">{{ icon('clock', 13) }}{{ m.prep_minutes }}′</span>{% endif %}</span>
-          <span class="meal-title" style="display:block">{{ m.title }}</span>
+          <span class="meal-title" style="display:block">{{ m.title }}{% set fav = m.title|lower|trim in fav_titles %}<span class="fav-mark" data-fav-mark {{ 'hidden' if not fav }}>{{ icon('star', 13) }}</span></span>
         </span>
         <span class="chev">{{ icon('chevron', 20) }}</span>
       </summary>
@@ -107,6 +109,8 @@
         <ul class="ing-list">
           {% for i in m.ingredients %}<li><span>{{ i.name }}</span><span class="muted">{{ i|qty }}</span></li>{% endfor %}
         </ul>
+        <button type="button" class="fav-btn sm {{ 'on' if fav }}" data-day="{{ day_idx }}" data-idx="{{ loop.index0 }}"
+                aria-pressed="{{ 'true' if fav else 'false' }}">{{ icon('star', 16) }}<span>{{ 'Nei preferiti' if fav else 'Aggiungi ai preferiti' }}</span></button>
       </div>
     </details>
     {% endfor %}
@@ -166,6 +170,18 @@ document.querySelectorAll('.day-chip').forEach(chip => chip.addEventListener('cl
   document.querySelectorAll('.day-panel').forEach(p => { p.hidden = p.dataset.panel !== chip.dataset.day; });
 }));
 document.querySelector('.day-chip.on')?.scrollIntoView({inline: 'center', block: 'nearest'});
+document.querySelectorAll('.fav-btn').forEach(b => b.addEventListener('click', async () => {
+  b.disabled = true;
+  const body = new URLSearchParams({pid: '{{ plan.id if plan else 0 }}', day: b.dataset.day, idx: b.dataset.idx});
+  const r = await fetch('/preferiti/stella', {method: 'POST', body}).catch(() => null);
+  b.disabled = false;
+  if (!r || !r.ok) return toast('Non riesco a salvare il preferito');
+  const {on} = await r.json();
+  b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+  b.querySelector('span').textContent = on ? 'Nei preferiti' : 'Aggiungi ai preferiti';
+  b.closest('.meal-card').querySelector('[data-fav-mark]').hidden = !on;
+  toast(on ? '⭐ Aggiunto ai preferiti' : 'Tolto dai preferiti');
+}));
 const g = document.getElementById('generating');
 if (g) setInterval(async () => {
   const r = await fetch(`/piano/${g.dataset.pid}/stato`).then(r => r.json());

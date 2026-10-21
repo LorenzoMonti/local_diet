@@ -13,6 +13,40 @@
   </label>
 </form>
 
+{% if trend and trend.watch %}
+<div class="section-title">Da tenere d'occhio</div>
+<div class="card flush list">
+  {% for s in trend.watch %}
+  {% set last = s.latest %}
+  <div class="trend-row">
+    <span class="grow">
+      <span class="title" style="display:block">{{ s.name }}</span>
+      <span class="muted xs">rif. {{ s.ref or 'n/d' }}{{ ' · ' ~ s.trend if s.trend }}</span>
+      {% if s.history|length > 1 %}
+      <span class="trend-hist xs">
+        {% for h in s.history %}<span class="{{ h.flag }}">{{ h.value }}<small> {{ h.date|itdate(short=True) }}</small></span>{% if not loop.last %}<span class="muted">→</span>{% endif %}{% endfor %}
+      </span>
+      {% endif %}
+    </span>
+    <span class="trend-val {{ last.flag }}">
+      <b>{{ last.value }}</b><small>{{ s.unit }}</small>
+      {% if s.trend %}<span class="trend-badge {{ 'good' if s.trend == 'in miglioramento' else 'bad' if s.trend == 'in peggioramento' else '' }}">{{ {'in miglioramento': '↘ meglio', 'in peggioramento': '↗ peggio', 'stabile': '= stabile', 'in aumento': '↑', 'in calo': '↓'}[s.trend] }}</span>{% endif %}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% if trend and trend.normal %}
+<details class="card">
+  <summary class="row between" style="cursor:pointer;list-style:none">
+    <strong class="row">{{ icon('check', 18) }} Nella norma <span class="muted" style="font-weight:500">· {{ trend.normal|length }}</span></strong>
+    <span class="muted">{{ icon('chevron', 18) }}</span>
+  </summary>
+  <p class="muted xs" style="margin:.5rem 0 0">All'ultimo referto ({{ trend.last_date|itdate }}).</p>
+  <div class="normal-chips">{% for n in trend.normal %}<span>{{ n }}</span>{% endfor %}</div>
+</details>
+{% endif %}
+
 {% if files %}
 <div class="section-title">I referti di {{ me.name }}</div>
 <div class="card flush list">

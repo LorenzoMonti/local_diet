@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from pydantic import ValidationError
 
-from . import db
+from . import db, labs
 from .assistant import MEALS, PLAN_SCHEMA, PLAN_SYSTEM, PROFILE_LABELS, Plan
 
 ALIASES = ["Persona A", "Persona B"]
@@ -52,16 +52,16 @@ def export_prompt(plan: dict | None, week_start: str, anonymize: bool, include_l
     if notes:
         parts.append("## Note\n" + "\n".join(f"- ({n['user_name'] or 'entrambi'}) {n['content']}" for n in notes))
 
+    favs = db.favorites()
+    if favs:
+        parts.append("## Piatti preferiti (riproponine qualcuno)\n"
+                     + "\n".join(f"- {f['meal'] or 'pasto'}: {f['title']}" for f in favs))
+
     if include_labs:
-        # Solo i valori strutturati: il testo del referto non esce mai dall'app.
-        labs = [f for f in db.approved_labs() if f["labs"] and f["labs"].get("results")]
-        if labs:
-            chunks = []
-            for f in labs:
-                rows = "\n".join(f"- {r['name']}: {r['value']} {r['unit']} (rif. {r['reference_range'] or 'n/d'}; {r['flag']})"
-                                 for r in f["labs"]["results"])
-                chunks.append(f"### {f['user_name']} — esami del {f['exam_date'] or f['uploaded_at'][:10]}\n{rows}")
-            parts.append("## Esami del sangue\n" + "\n\n".join(chunks))
+        # Solo i valori strutturati (fuori range con storico, gli altri per nome); mai il testo del referto.
+        labs_text = labs.summary_text(raw_limit=0)
+        if labs_text:
+            parts.append("## Esami del sangue\n" + labs_text)
 
     labels = day_labels(week_start)
     if plan:

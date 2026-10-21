@@ -4,6 +4,7 @@ Il modello vero e proprio sta in app/backends/ e si sceglie con LLM_PROVIDER:
   - "claude": Claude API (SDK Anthropic)
   - "openai": qualunque API compatibile OpenAI (Gemini, Groq, OpenRouter, Mistral, Ollama…)
 """
+import asyncio
 import hashlib
 import json
 import os
@@ -13,7 +14,7 @@ from typing import AsyncIterator, Literal
 
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
-from . import db, shopping
+from . import db, labs, shopping
 
 PROVIDER = os.environ.get("LLM_PROVIDER", "openai").strip().lower()
 
@@ -312,7 +313,10 @@ TOOL_LABELS = {"save_note": "📝 Nota salvata", "delete_note": "🗑️ Nota el
 
 LABS_SYSTEM = (
     "Estrai i valori di laboratorio da un referto di esami del sangue già anonimizzato. "
-    "Riporta ogni analita una sola volta, con valore, unità e intervallo di riferimento come scritti. "
+    "Riporta TUTTI gli analiti presenti nel testo, fino all'ultimo: sangue, urine e qualsiasi altro esame, "
+    "anche quelli con risultato qualitativo (es. 'Negativo') o senza intervallo di riferimento. "
+    "Ogni analita una sola volta, con valore, unità e intervallo di riferimento come scritti. "
+    "Se il testo non contiene esami, restituisci una lista vuota. "
     "Il flag indica se il valore è fuori dall'intervallo di riferimento. Le parti tra parentesi quadre "
     "(es. [FULLNAME_1], [RIMOSSO]) sono dati oscurati: ignorale."
 )
@@ -328,6 +332,8 @@ verdure a foglia con fonti di vitamina C, tè/caffè lontano dai pasti; colester
 grassi insaturi, pochi grassi saturi). Non fare diagnosi.
 - Varietà nella settimana, ingredienti di stagione, riuso intelligente degli avanzi e preparazioni in batch \
 per ridurre sprechi e tempi.
+- Se ci sono piatti preferiti, riproponine qualcuno nella settimana (2-3, anche con piccole variazioni \
+di stagione), purché compatibili con le esigenze di entrambi.
 - Le quantità degli ingredienti sono il totale per entrambe le persone; usa grammi crudi/secchi.
 - Usa nomi di ingredienti coerenti in tutta la settimana (stesso nome per lo stesso prodotto) così la lista \
 della spesa si somma correttamente.
@@ -370,19 +376,13 @@ def build_context(current_uid: int | None = None) -> str:
         parts.append("## Note salvate\n" + "\n".join(
             f"- [id {n['id']}] ({n['user_name'] or 'entrambi'}) {n['content']}" for n in notes))
 
-    labs = db.approved_labs()
-    if labs:
-        chunks = []
-        for f in labs:
-            head = f"### Esami di {f['user_name']} — {f['exam_date'] or f['uploaded_at'][:10]}"
-            if f["labs"] and f["labs"].get("results"):
-                body = "\n".join(
-                    f"- {r['name']}: {r['value']} {r['unit']} (rif. {r['reference_range'] or 'n/d'}; {r['flag']})"
-                    for r in f["labs"]["results"])
-            else:
-                body = (f["anon_text"] or "")[:6000]
-            chunks.append(f"{head}\n{body}")
-        parts.append("## Esami del sangue (anonimizzati)\n" + "\n\n".join(chunks))
+    labs_text = labs.summary_text()
+    if labs_text:
+        parts.append("## Esami del sangue (anonimizzati)\n" + labs_text)
+
+    favs = db.favorites()
+    if favs:
+        parts.append("## Piatti preferiti\n" + "\n".join(f"- {f['meal'] or 'pasto'}: {f['title']}" for f in favs))
 
     plan = db.active_plan()
     if plan:
@@ -423,8 +423,67 @@ def model_label() -> str:
 
 # --- operazioni -------------------------------------------------------------------
 
+LABS_CHUNK = 1500  # caratteri: sui referti lunghi i modelli più piccoli si fermano a metà
+
+
+def _chunks(text: str, size: int = LABS_CHUNK) -> list[str]:
+    out, cur = [], ""
+    for line in text.splitlines(keepends=True):
+        if cur and len(cur) + len(line) > size:
+            out.append(cur)
+            cur = ""
+        cur += line
+    if out and len(cur) < size // 3:  # coda corta (spesso solo il piè di pagina): va col blocco prima
+        out[-1] += cur
+    else:
+        out.append(cur)
+    return [c for c in out if c.strip()]
+
+
+def _in_text(value: str, text: str) -> bool:
+    """Il valore compare davvero nel testo? Scarta i valori inventati dal modello."""
+    v = str(value).strip()
+    if not v:
+        return False
+    norm = lambda s: re.sub(r"\s+", " ", s.replace(",", ".")).lower()  # noqa: E731
+    return norm(v) in norm(text)
+
+
+_NUM = r"(\d+(?:[.,]\d+)?)"
+
+
+def _flag(value: str, ref: str) -> str | None:
+    """Esito calcolato da valore e intervallo numerici; None se non si può dire."""
+    num = lambda s: float(s.replace(",", "."))  # noqa: E731
+    v = re.fullmatch(r"\s*[<>]?\s*" + _NUM + r"\s*", str(value))
+    if not v:
+        return None
+    x = num(v.group(1))
+    if m := re.fullmatch(r"\s*" + _NUM + r"\s*[-–]\s*" + _NUM + r"\s*", ref or ""):
+        lo, hi = num(m.group(1)), num(m.group(2))
+        return "basso" if x < lo else "alto" if x > hi else "normale"
+    if m := re.fullmatch(r"\s*(<=?|>=?)\s*" + _NUM + r"\s*", ref or ""):
+        op, lim = m.group(1), num(m.group(2))
+        ok = x <= lim if op.startswith("<") else x >= lim
+        return "normale" if ok else ("alto" if op.startswith("<") else "basso")
+    return None
+
+
 async def extract_labs(anon_text: str) -> dict:
-    return await backend().structured(LABS_SYSTEM, anon_text, LABS_SCHEMA, "labs", effort="medium")
+    """Estrae a blocchi e unisce: ogni richiesta resta corta, così nessun esame viene saltato."""
+    chunks = _chunks(anon_text)
+    parts = await asyncio.gather(*(
+        backend().structured(LABS_SYSTEM, c, LABS_SCHEMA, "labs", effort="medium") for c in chunks))
+    date, results, seen = "", [], set()
+    for chunk, part in zip(chunks, parts):
+        date = date or part.get("exam_date", "")
+        for r in part.get("results") or []:
+            key = (str(r.get("name", "")).strip().lower(), str(r.get("value", "")).strip())
+            if key[0] and key not in seen and _in_text(key[1], chunk):
+                seen.add(key)
+                r["flag"] = _flag(key[1], r.get("reference_range", "")) or r.get("flag") or "non indicato"
+                results.append(r)
+    return {"exam_date": date, "results": results}
 
 
 async def generate_plan(plan_id: int, week_start: str, request: str, meals: list[str]):

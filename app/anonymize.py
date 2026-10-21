@@ -17,7 +17,8 @@ LABEL_RE = re.compile(
     r"indirizzo|residen(?:za|te)|domicilio|comune|c\.?\s?f\.?|codice\s+fiscale|"
     r"tessera\s+sanitaria|n\.?\s*tessera|medico(?:\s+curante|\s+richiedente)?|"
     r"telefono|tel\.?|cell(?:ulare)?\.?|e-?mail|n\.?\s*(?:richiesta|accettazione|campione|referto)|"
-    r"id\s+paziente|cod(?:ice)?\.?\s+paziente)\b\s*[:.\-]?)(?P<value>.*)$"
+    r"id\s+paziente|cod(?:ice)?\.?\s+paziente|id\.?\s*paz|sig(?:\.?ra|nora|nor)?|nosologico|"
+    r"doc(?:umento)?\.?\s*n|richiesta)\b\s*[:.\-]?)(?P<value>.*)$"
 )
 CF_RE = re.compile(r"\b[A-Z]{6}\d{2}[A-EHLMPRST]\d{2}[A-Z]\d{3}[A-Z]\b", re.I)
 EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]+\b")

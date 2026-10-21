@@ -13,7 +13,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/icon-180.png">
-  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/style.css?v={{ css_v }}">
 </head>
 <body class="page-{{ page }}{{ ' has-nav' if me }}">
 {% if me %}
@@ -36,7 +36,7 @@
   {% for href, key, label, ic in [('/piano', 'plan', 'Piano', 'calendar'), ('/spesa', 'shopping', 'Spesa', 'cart'),
                                   ('/chat', 'chat', 'Chat', 'chat'), ('/file', 'files', 'Esami', 'file'),
                                   ('/profilo', 'profile', 'Profilo', 'user')] %}
-  {% set on = page == key or (key == 'files' and page == 'file_detail') or (key == 'profile' and page == 'settings') %}
+  {% set on = page == key or (key == 'files' and page == 'file_detail') or (key == 'profile' and page == 'settings') or (key == 'plan' and page in ('favorites', 'exchange')) %}
   <a href="{{ href }}" class="{{ 'on' if on }}" {{ 'aria-current=page' if on }}>
     <span class="pill">{{ icon(ic, 22) }}</span>{{ label }}
   </a>
